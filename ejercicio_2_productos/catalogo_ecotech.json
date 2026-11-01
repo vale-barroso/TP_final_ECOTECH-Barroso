@@ -1,0 +1,24 @@
+[
+    {
+        "tipo": "PanelSolar",
+        "nombre": "Panel Monocristalino 450W",
+        "precio": 320.0,
+        "stock": 12,
+        "potencia_w": 450,
+        "eficiencia": 21.3
+    },
+    {
+        "tipo": "PanelSolar",
+        "nombre": "Panel Policristalino 280W",
+        "precio": 180.5,
+        "stock": 30,
+        "potencia_w": 280,
+        "eficiencia": 16.8
+    },
+    {
+        "tipo": "DispositivoEcologico",
+        "nombre": "Cargador Solar Portatil",
+        "precio": 45.9,
+        "stock": 50
+    }
+]
