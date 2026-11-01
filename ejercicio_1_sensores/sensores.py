@@ -1,51 +1,67 @@
-import re
-
-UBICACION_POR_DEFECTO = "Sin ubicacion"
+UBICACION_POR_DEFECTO = "Área No Asignada"
 
 
 def limpiar_registro_sensor(registro_raw):
-    """Devuelve un diccionario normalizado a partir de un registro crudo."""
-    sensor_id = str(registro_raw.get("sensor_id", "")).strip()
+    """Recibe un diccionario crudo y devuelve uno nuevo, estandarizado."""
+    limpio = {}
 
-    # busco el numero dentro del texto (ej: "24.5C" -> 24.5)
-    texto_temp = str(registro_raw.get("temperatura", "")).strip()
-    coincidencia = re.search(r"-?\d+(?:[.,]\d+)?", texto_temp)
-    temperatura = None
-    if coincidencia:
-        temperatura = float(coincidencia.group().replace(",", "."))
+    # 1. ID sin espacios sobrantes
+    limpio["sensor_id"] = str(registro_raw.get("sensor_id", "")).strip()
 
-    # si la clave falta, es None o viene vacia, uso el valor por defecto
-    ubicacion = str(registro_raw.get("ubicacion") or "").strip()
-    if not ubicacion:
-        ubicacion = UBICACION_POR_DEFECTO
+    # 2. Temperatura como float
+    temperatura = registro_raw.get("temperatura", 0.0)
+    if isinstance(temperatura, (int, float)):
+        limpio["temperatura"] = float(temperatura)
+    else:
+        texto = (
+            str(temperatura)
+            .upper()
+            .replace("C", "")
+            .replace("F", "")
+            .replace("°", "")
+            .replace(" ", "")
+            .replace(",", ".")
+        )
+        try:
+            limpio["temperatura"] = float(texto)
+        except ValueError:
+            limpio["temperatura"] = 0.0  # valor seguro si el texto esta corrupto
 
-    return {"sensor_id": sensor_id, "temperatura": temperatura, "ubicacion": ubicacion}
+    # 3. Ubicacion con valor por defecto
+    ubicacion = registro_raw.get("ubicacion")
+    if isinstance(ubicacion, str) and ubicacion.strip():
+        limpio["ubicacion"] = ubicacion.strip()
+    else:
+        limpio["ubicacion"] = UBICACION_POR_DEFECTO
+
+    return limpio
 
 
 def generar_resumen_sensores(lista_sensores_limpios, umbral_temperatura):
-    """Devuelve (ids_en_alerta, promedio_de_temperatura)."""
-    ids_alerta = []
-    temperaturas = []
+    """Devuelve la tupla (lista_sensores_alerta, promedio_temperatura)."""
+    # clausula de guarda: evita la division por cero
+    if not lista_sensores_limpios:
+        return [], 0.0
+
+    suma = 0.0
+    alertas = []
 
     for sensor in lista_sensores_limpios:
-        temp = sensor["temperatura"]
-        if temp is None:  # lectura que no se pudo interpretar
-            continue
-        temperaturas.append(temp)
-        if temp > umbral_temperatura:
-            ids_alerta.append(sensor["sensor_id"])
+        suma += sensor["temperatura"]
+        if sensor["temperatura"] > umbral_temperatura:
+            alertas.append(sensor["sensor_id"])
 
-    promedio = sum(temperaturas) / len(temperaturas) if temperaturas else 0.0
-    return ids_alerta, promedio
+    promedio = round(suma / len(lista_sensores_limpios), 2)
+    return alertas, promedio
 
 
 if __name__ == "__main__":
     crudos = [
         {"sensor_id": " SENSOR-001 ", "temperatura": "24.5C", "ubicacion": "Planta Norte"},
-        {"sensor_id": "SENSOR-002", "temperatura": " 31,2 C ", "ubicacion": "Planta Sur"},
-        {"sensor_id": "  SENSOR-003", "temperatura": "40C"},
-        {"sensor_id": "SENSOR-004 ", "temperatura": "28.0C", "ubicacion": "   "},
-        {"sensor_id": "SENSOR-005", "temperatura": "error", "ubicacion": "Planta Este"},
+        {"sensor_id": "SENSOR-002", "temperatura": "35.0 C", "ubicacion": "Planta Sur"},
+        {"sensor_id": "  SENSOR-003", "temperatura": "31.2°C"},
+        {"sensor_id": "SENSOR-004 ", "temperatura": 28, "ubicacion": "   "},
+        {"sensor_id": "SENSOR-005", "temperatura": "error", "ubicacion": ""},
     ]
     umbral = 30.0
 
@@ -54,8 +70,7 @@ if __name__ == "__main__":
 
     print("=== REPORTE DE SENSORES - ECOTECH SOLUTIONS ===")
     for s in limpios:
-        temp = f"{s['temperatura']:.1f} C" if s["temperatura"] is not None else "sin dato"
-        print(f"{s['sensor_id']:<12} {temp:<10} {s['ubicacion']}")
-    print(f"\nUmbral: {umbral:.1f} C")
-    print(f"Sensores en alerta: {', '.join(alertas) if alertas else 'ninguno'}")
-    print(f"Promedio global: {promedio:.2f} C")
+        print(f"{s['sensor_id']:<12} {s['temperatura']:>5.1f} C   {s['ubicacion']}")
+    print(f"\nUmbral de alerta: {umbral} C")
+    print(f"Sensores en alerta: {alertas}")
+    print(f"Promedio térmico global: {promedio} C")
